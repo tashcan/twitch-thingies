@@ -1,0 +1,16 @@
+[package]
+name = "tashbot"
+version = "0.0.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = {version = "1", features = ["full"]}
+irc = "0.15"
+irc-proto = "0.15"
+config = "0.13"
+serde = "1"
+futures-util = "0.3"
+thiserror = "1"
+tracing = "0.1"
