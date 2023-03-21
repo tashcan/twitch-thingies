@@ -5,6 +5,7 @@ use std::env;
 #[derive(Deserialize)]
 pub struct Settings {
     pub bot_token: String,
+    pub database_url: String,
 }
 
 impl Settings {
