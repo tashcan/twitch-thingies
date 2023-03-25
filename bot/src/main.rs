@@ -6,27 +6,12 @@ use settings::*;
 use futures_util::StreamExt;
 use irc::client::prelude::*;
 
-use thiserror::Error;
 use tokio::sync::mpsc::{self, error::SendError};
-use tracing::error;
 
 mod db;
+mod error;
 mod runner;
-
-#[derive(Error, Debug)]
-enum BotError {
-    #[error("Malformed Twitch PRIVMSG, missing required field `{0}`")]
-    PrivMsgMissingField(&'static str),
-
-    #[error("Internal communication error. Runner no longer exists.")]
-    InternalCommmunicationErrorRunnerDead(#[from] SendError<TashControl>),
-
-    #[error("Invalid configuration")]
-    InvalidConfiguration(#[from] config::ConfigError),
-
-    #[error("Ripper the idiot was lazy")]
-    NotSpecified,
-}
+use error::*;
 
 #[derive(Debug)]
 struct TwitchMessage {
@@ -38,7 +23,7 @@ struct TwitchMessage {
     color: String,
     display_name: Option<String>,
     bits: u32,
-    badges: Vec<(String, i8)>,
+    badges: Vec<(String, u32)>,
     sub_months: u16,
     text: String,
 }
@@ -89,7 +74,7 @@ impl TwitchMessage {
                     .map(|value| splits.nth(0).map(|value2| (value, value2)))
                     .flatten()
             })
-            .map(|(name, value)| (name.to_owned(), value.parse::<i8>().unwrap()))
+            .map(|(name, value)| (name.to_owned(), value.parse::<u32>().unwrap()))
             .collect();
 
         Ok(Self {
@@ -130,7 +115,7 @@ struct Tashbot {
 }
 
 impl Tashbot {
-    pub async fn new(nickname: &str, token: &str, pool: mysql::Pool) -> Self {
+    pub async fn new(nickname: &str, token: &str, pool: mysql_async::Pool) -> Self {
         let config = Config {
             nickname: Some(nickname.to_owned()),
             password: Some(format!("oauth:{}", token)),
@@ -147,11 +132,12 @@ impl Tashbot {
 
         let (tx, rx) = mpsc::unbounded_channel();
         let runner_handle = tokio::spawn(async move { TashbotRunner::new(client, rx).run().await });
+        let db = TashbotDb::new(pool);
 
         Self {
             sender: tx,
             runner_handle,
-            db: TashbotDb::new(pool),
+            db,
         }
     }
 
@@ -160,18 +146,25 @@ impl Tashbot {
             .send(TashControl::JoinChannel(channel.to_owned()))
             .map_err(|e| e.into())
     }
+    pub async fn join_channels(&self) -> Result<(), BotError> {
+        for channel in self.db.get_channels().await? {
+            self.join(&format!("#{}", channel)).await;
+        }
+        Ok(())
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), BotError> {
     let settings = Settings::new()?;
 
-    let builder =
-        mysql::OptsBuilder::from_opts(mysql::Opts::from_url(&settings.database_url).unwrap());
-    let pool = mysql::Pool::new(builder.ssl_opts(mysql::SslOpts::default())).unwrap();
+    let builder = mysql_async::OptsBuilder::from_opts(
+        mysql_async::Opts::from_url(&settings.database_url).unwrap(),
+    );
+    let pool = mysql_async::Pool::new(builder.ssl_opts(mysql_async::SslOpts::default()));
 
     let bot = Tashbot::new("heroictashbot", &settings.bot_token, pool.clone()).await;
-    bot.join("#heroictashcan").await;
+    bot.join_channels().await?;
 
     shutdown_signal().await;
 

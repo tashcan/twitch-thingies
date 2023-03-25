@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+mysql_async = { version = "0.31", default-features = false, features = ["default-rustls"] }
 tokio = {version = "1", features = ["full"]}
 irc = "0.15"
 irc-proto = "0.15"
@@ -14,4 +15,4 @@ serde = "1"
 futures-util = "0.3"
 thiserror = "1"
 tracing = "0.1"
-mysql = "23"
+clap = "4"
