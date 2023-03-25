@@ -1,0 +1,14 @@
+[package]
+name = "sql-migrations"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+mysql_async = { version = "0.31", default-features = false, features = ["default-rustls"] }
+config = "0.13"
+rust-embed = "6.6.0"
+serde = "1"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+tracing = "0.1"
+
