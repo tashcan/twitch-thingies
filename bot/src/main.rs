@@ -113,7 +113,6 @@ struct Tashbot {
     sender: mpsc::UnboundedSender<TashControl>,
     runner_handle: tokio::task::JoinHandle<()>,
     db: TashbotDb,
-    channels: HashMap<i32, String>,
 }
 
 impl Tashbot {
@@ -140,7 +139,6 @@ impl Tashbot {
             sender: tx,
             runner_handle,
             db,
-            channels: HashMap::new(),
         }
     }
 
@@ -166,18 +164,17 @@ impl Tashbot {
             .map_err(|e| e.into())
     }
 
-    pub async fn join_channels(&mut self) -> Result<(), BotError> {
-        self.channels = self.db.get_channels().await?;
-        for (_, channel) in &self.channels {
+    pub async fn join_channels(&self) -> Result<(), BotError> {
+        for (_, channel) in self.db.get_channels().await? {
             self.join(&format!("#{}", channel)).await?;
         }
         Ok(())
     }
 
     pub async fn load_commands(&self) -> Result<(), BotError> {
-        for (channel_id, channel_name) in &self.channels {
-            for command in self.db.get_commands(*channel_id).await? {
-                self.update_command(channel_name, command).await;
+        for (channel_id, channel_name) in self.db.get_channels().await? {
+            for command in self.db.get_commands(channel_id).await? {
+                self.update_command(&channel_name, command).await?;
             }
         }
         Ok(())
@@ -198,7 +195,7 @@ async fn main() -> Result<(), BotError> {
     );
     let pool = mysql_async::Pool::new(builder.ssl_opts(mysql_async::SslOpts::default()));
 
-    let mut bot = Tashbot::new("heroictashbot", &settings.bot_token, pool.clone()).await;
+    let bot = Tashbot::new("heroictashbot", &settings.bot_token, pool.clone()).await;
     bot.join_channels().await?;
     bot.load_commands().await?;
 

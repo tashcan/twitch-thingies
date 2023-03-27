@@ -53,13 +53,11 @@ impl TashbotRunner {
                                 ) {
                                     error!("Failed to send reply {e}");
                                 }
-                                //
                             }
                         }
                     }
                     Err(e) => {
                         println!("{}", e);
-                        //
                     }
                 }
             }
@@ -88,7 +86,14 @@ impl TashbotRunner {
                 }
             }
             TashControl::RemoveCommand((channel, command_id)) => {
-                //
+                if let Some(commands_for_channel) = self.commands.get_mut(&channel) {
+                    if let Some(command_idx) = commands_for_channel
+                        .iter()
+                        .position(|command| command.id == command_id)
+                    {
+                        commands_for_channel.remove(command_idx);
+                    }
+                }
             }
         }
         true
@@ -105,8 +110,7 @@ impl TashbotRunner {
                             self.handle_message(message)
                         }
                         Err(e) => {
-                            // TODO: actually do nice error logging or something
-                            println!("Invalid {}", e);
+                            error!("Invalid Message: {}", e);
                         }
                     }
                 }
