@@ -1,9 +1,10 @@
 mod settings;
+use std::collections::HashMap;
+
 use db::TashbotDb;
 use runner::TashbotRunner;
 use settings::*;
 
-use futures_util::StreamExt;
 use irc::client::prelude::*;
 
 use tokio::sync::mpsc::{self, error::SendError};
@@ -12,6 +13,8 @@ mod db;
 mod error;
 mod runner;
 use error::*;
+
+pub(crate) use db::Command;
 
 #[derive(Debug)]
 struct TwitchMessage {
@@ -101,17 +104,16 @@ impl TwitchMessage {
 enum TashControl {
     JoinChannel(String),
     LeaveChannel(String),
-    AddCommand {
-        channel: String,
-        cmd: String,
-        msg: String,
-    },
+    UpdateCommand((String, db::Command)),
+    RemoveCommand((String, i32)),
+    Shutdown,
 }
 
 struct Tashbot {
     sender: mpsc::UnboundedSender<TashControl>,
     runner_handle: tokio::task::JoinHandle<()>,
     db: TashbotDb,
+    channels: HashMap<i32, String>,
 }
 
 impl Tashbot {
@@ -138,6 +140,7 @@ impl Tashbot {
             sender: tx,
             runner_handle,
             db,
+            channels: HashMap::new(),
         }
     }
 
@@ -146,11 +149,43 @@ impl Tashbot {
             .send(TashControl::JoinChannel(channel.to_owned()))
             .map_err(|e| e.into())
     }
-    pub async fn join_channels(&self) -> Result<(), BotError> {
-        for channel in self.db.get_channels().await? {
-            self.join(&format!("#{}", channel)).await;
+
+    pub async fn leave(&self, channel: &str) -> Result<(), BotError> {
+        self.sender
+            .send(TashControl::LeaveChannel(channel.to_owned()))
+            .map_err(|e| e.into())
+    }
+
+    pub async fn update_command(
+        &self,
+        channel: &str,
+        command: db::Command,
+    ) -> Result<(), BotError> {
+        self.sender
+            .send(TashControl::UpdateCommand((channel.to_owned(), command)))
+            .map_err(|e| e.into())
+    }
+
+    pub async fn join_channels(&mut self) -> Result<(), BotError> {
+        self.channels = self.db.get_channels().await?;
+        for (_, channel) in &self.channels {
+            self.join(&format!("#{}", channel)).await?;
         }
         Ok(())
+    }
+
+    pub async fn load_commands(&self) -> Result<(), BotError> {
+        for (channel_id, channel_name) in &self.channels {
+            for command in self.db.get_commands(*channel_id).await? {
+                self.update_command(channel_name, command).await;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn shutdown(self) -> Result<(), BotError> {
+        self.sender.send(TashControl::Shutdown)?;
+        self.runner_handle.await.map_err(|e| e.into())
     }
 }
 
@@ -163,10 +198,13 @@ async fn main() -> Result<(), BotError> {
     );
     let pool = mysql_async::Pool::new(builder.ssl_opts(mysql_async::SslOpts::default()));
 
-    let bot = Tashbot::new("heroictashbot", &settings.bot_token, pool.clone()).await;
+    let mut bot = Tashbot::new("heroictashbot", &settings.bot_token, pool.clone()).await;
     bot.join_channels().await?;
+    bot.load_commands().await?;
 
     shutdown_signal().await;
+
+    bot.shutdown().await?;
 
     Ok(())
 }

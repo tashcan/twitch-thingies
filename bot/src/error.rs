@@ -17,6 +17,9 @@ pub(crate) enum BotError {
     #[error("Database error")]
     DatabaseError(#[from] mysql_async::Error),
 
+    #[error("Join Error")]
+    JoinError(#[from] tokio::task::JoinError),
+
     #[error("Ripper the idiot was lazy")]
     NotSpecified,
 }
