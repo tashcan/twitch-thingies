@@ -9,7 +9,6 @@ use irc::client::prelude::*;
 
 use tokio::sync::mpsc::{self, error::SendError};
 
-mod db;
 mod error;
 mod runner;
 use error::*;
@@ -116,7 +115,7 @@ struct Tashbot {
 }
 
 impl Tashbot {
-    pub async fn new(nickname: &str, token: &str, pool: mysql_async::Pool) -> Self {
+    pub async fn new(nickname: &str, token: &str, db: TashbotDb) -> Self {
         let config = Config {
             nickname: Some(nickname.to_owned()),
             password: Some(format!("oauth:{}", token)),
@@ -133,7 +132,6 @@ impl Tashbot {
 
         let (tx, rx) = mpsc::unbounded_channel();
         let runner_handle = tokio::spawn(async move { TashbotRunner::new(client, rx).run().await });
-        let db = TashbotDb::new(pool);
 
         Self {
             sender: tx,
@@ -200,12 +198,9 @@ async fn web_server() {
 async fn main() -> Result<(), BotError> {
     let settings = Settings::new()?;
 
-    let builder = mysql_async::OptsBuilder::from_opts(
-        mysql_async::Opts::from_url(&settings.database_url).unwrap(),
-    );
-    let pool = mysql_async::Pool::new(builder.ssl_opts(mysql_async::SslOpts::default()));
+    let db = TashbotDb::from_url(&settings.database_url);
 
-    let bot = Tashbot::new("heroictashbot", &settings.bot_token, pool.clone()).await;
+    let bot = Tashbot::new("heroictashbot", &settings.bot_token, db).await;
     bot.join_channels().await?;
     bot.load_commands().await?;
 

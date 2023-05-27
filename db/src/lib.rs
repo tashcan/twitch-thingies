@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use mysql_async::prelude::*;
 
-use crate::BotError;
+pub type Error = mysql_async::Error;
 
-pub(crate) struct TashbotDb {
+pub struct TashbotDb {
     pool: mysql_async::Pool,
 }
 
 #[derive(Debug)]
-pub(crate) struct Command {
+pub struct Command {
     pub id: i32,
     pub name: String,
     pub prefix: String,
@@ -27,7 +27,14 @@ impl TashbotDb {
         Self { pool }
     }
 
-    pub async fn get_channels(&self) -> Result<HashMap<i32, String>, BotError> {
+    pub fn from_url(url: &str) -> Self {
+        let builder =
+            mysql_async::OptsBuilder::from_opts(mysql_async::Opts::from_url(url).unwrap());
+        let pool = mysql_async::Pool::new(builder.ssl_opts(mysql_async::SslOpts::default()));
+        Self::new(pool)
+    }
+
+    pub async fn get_channels(&self) -> Result<HashMap<i32, String>, Error> {
         let mut conn = self.pool.get_conn().await?;
         Ok("SELECT id, name FROM channels"
             .with(())
@@ -37,7 +44,7 @@ impl TashbotDb {
             .collect())
     }
 
-    pub async fn get_commands(&self, channel: i32) -> Result<Vec<Command>, BotError> {
+    pub async fn get_commands(&self, channel: i32) -> Result<Vec<Command>, Error> {
         let mut conn = self.pool.get_conn().await?;
         Ok("SELECT * FROM commands WHERE channel = :channel"
             .with(params! {

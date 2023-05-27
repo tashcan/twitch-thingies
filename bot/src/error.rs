@@ -15,7 +15,7 @@ pub(crate) enum BotError {
     InvalidConfiguration(#[from] config::ConfigError),
 
     #[error("Database error")]
-    DatabaseError(#[from] mysql_async::Error),
+    DatabaseError(#[from] db::Error),
 
     #[error("Join Error")]
     JoinError(#[from] tokio::task::JoinError),

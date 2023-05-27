@@ -1,11 +1,12 @@
 [package]
-name = "tashbot"
-version = "0.0.0"
+name = "api"
+version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+db = { path = "../db" }
 tokio = {version = "1", features = ["full"]}
 irc = { version = "0.15", default-features = false, features = ["ctcp", "tls-rust", "toml_config"]}
 irc-proto = "0.15"
@@ -16,4 +17,3 @@ thiserror = "1"
 tracing = "0.1"
 clap = "4"
 warp = "0.3" 
-db = { path = "../db" }

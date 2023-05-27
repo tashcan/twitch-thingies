@@ -1,5 +1,7 @@
 [workspace]
 members = [
     "bot",
+    "api",
+    "db",
     "sql-migrations"
 ]
