@@ -186,6 +186,16 @@ impl Tashbot {
     }
 }
 
+async fn web_server() {
+    use warp::Filter;
+
+    let routes = warp::any().map(|| "Hello, World!");
+    warp::serve(routes)
+        // ipv6 + ipv6 any addr
+        .run(([0, 0, 0, 0, 0, 0, 0, 0], 8080))
+        .await;
+}
+
 #[tokio::main]
 async fn main() -> Result<(), BotError> {
     let settings = Settings::new()?;
@@ -199,6 +209,8 @@ async fn main() -> Result<(), BotError> {
     bot.join_channels().await?;
     bot.load_commands().await?;
 
+    // TODO: make this a select
+    web_server().await;
     shutdown_signal().await;
 
     bot.shutdown().await?;
