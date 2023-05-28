@@ -12,9 +12,10 @@ RUN cargo chef cook --release --recipe-path recipe.json
 # Build application
 COPY . .
 RUN cargo build --release --bin tashbot
+RUN cargo build --release --bin api
 
 # We do not need the Rust toolchain to run the binary!
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 COPY --from=builder /app/target/release/tashbot /usr/local/bin
-ENTRYPOINT ["/usr/local/bin/tashbot"]
+COPY --from=builder /app/target/release/api /usr/local/bin
